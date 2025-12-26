@@ -17,8 +17,16 @@ from .notes import *
 from .score import *
 from .lyric import *
 
+from dataclasses import dataclass
+from typing import Optional
+
 __all__ = ['Drawing', 'DrawingSentence']
 
+@dataclass
+class CoverRect:
+    bar_from: Optional[Fraction] = None
+    css_class: Optional[str] = None
+    bar_to: Optional[Fraction] = None
 
 class Drawing:
 
@@ -28,6 +36,7 @@ class Drawing:
         lyric: Lyric = None,
         style_sheet: str = '',
         note_host: str = 'https://asset3.pjsekai.moe/live/note/custom01',
+        skill: bool = False,
         **kwargs,
     ):
 
@@ -60,8 +69,18 @@ class Drawing:
         self.tick_length = 24
         self.tick_2_length = 8
 
+        '''skill'''
+        self.skill = skill
+        self.special_covers: list[CoverRect] = []
+
         with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'css/default.css'), encoding='UTF-8') as f:
-            self.style_sheet = f.read() + '\n' + style_sheet
+            self.style_sheet = f.read() 
+
+        if self.skill:
+            with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'css/skill.css'), encoding='UTF-8') as f:
+                self.style_sheet += '\n' + f.read() 
+
+        self.style_sheet += '\n' + style_sheet
 
     def __getitem__(self, bar: slice) -> svgwrite.Drawing:
         bar = slice(bar.start or 0, bar.stop or int(self.score.notes[-1].bar + 1))
@@ -78,6 +97,31 @@ class Drawing:
 
         bar = 0
         event = Event(bar=0, bpm=120, bar_length=4, sentence_length=4)
+
+        # skill cover
+        if self.skill:
+            skill_i = 0
+            for e in self.score.events:
+                if e.text != "SKILL":
+                    continue
+                # print(e)
+                self.special_covers.append(CoverRect(
+                    self.score.get_bar_by_time(self.score.get_time(e.bar) - 5 / 60),
+                    "skill-great",
+                    self.score.get_bar_by_time(self.score.get_time(e.bar) + 5 + 5 / 60)
+                ))
+                self.special_covers.append(CoverRect(
+                    self.score.get_bar_by_time(self.score.get_time(e.bar) - 2.5 / 60),
+                    "skill-perfect",
+                    self.score.get_bar_by_time(self.score.get_time(e.bar) + 5 + 2.5 / 60)
+                ))
+                self.special_covers.append(CoverRect(
+                    e.bar,
+                    "skill-duration",
+                    self.score.get_bar_by_time(self.score.get_time(e.bar) + 5)
+                ))
+                skill_i += 1
+
         for i in range(n_bars + 1):
             e = self.score.get_event(i)
 
@@ -268,6 +312,16 @@ class Drawing:
         # scale['x'] = width - self.meta_size
         # scale['y'] = height + self.padding * 2
         # drawing.add(scale)
+        
+        
+        drawing.add(svgwrite.text.Text(
+            'Code by ぷろせかもえ！ (pjsekai.moe)　& Unibot & 33 (3-3.dev & bilibili @xfl03)',
+            insert=(
+                width - 900,
+                height + self.lane_padding * 4.2,
+            ),
+            class_='themehint',
+        ))
 
         width = 0
         for d in drawings:
@@ -702,6 +756,25 @@ class DrawingSentence(Drawing):
             ),
             class_='lane',
         ))
+
+        # Draw special cover under notes
+        for cover in self.special_covers:
+            cover_bar_from = max(self.bar.start - 0.2, cover.bar_from)
+            cover_bar_to  = min(self.bar.stop + 0.2, cover.bar_to)
+            if cover_bar_to <= cover_bar_from:
+                continue
+            drawing.add(drawing.rect(
+                insert=(
+                    self.lane_padding,
+                    round(self.time_height * self.score.get_time_delta(cover_bar_to, self.bar.stop) + self.time_padding),
+                ),
+                size=(
+                    round(self.lane_width * self.n_lanes),
+                    round(self.time_height * self.score.get_time_delta(cover_bar_from, cover_bar_to))
+                ),
+                class_=cover.css_class
+            ))
+
 
         for lane in range(0, self.n_lanes + 1, 2):
             drawing.add(drawing.line(

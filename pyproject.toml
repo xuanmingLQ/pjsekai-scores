@@ -15,7 +15,9 @@ classifiers = [
     "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
 ]
-dependencies = ["svgwrite"]
+dependencies = [
+    "svgwrite",
+]
 dynamic = ["version"]
 
 [project.urls]
@@ -51,3 +53,7 @@ push = true
     "{pep440_version}",
 ]
 
+[[tool.uv.index]]
+name = "aliyun"
+url = "https://mirrors.aliyun.com/pypi/simple"
+default = true
